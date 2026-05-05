@@ -121,7 +121,11 @@ const SCORES = {
   p11:[6,7], p12:[6,8], p13:[2,8], p14:[6,6], p15:[5,5], p16:[8,7], p17:[9,6], p18:[9,8], p19:[6,6], p20:[6,6],
   o1:[8,7], o2:[5,8], o3:[5,9], o4:[9,7], o5:[7,7], o6:[6,6], o7:[8,5], o8:[9,7], o9:[6,7], o10:[5,6], o11:[5,7], o12:[9,6], o13:[6,7],
   s1:[3,7], s2:[4,5], s3:[3,6], s4:[4,4], s5:[4,6], s6:[5,6], s7:[5,4], s8:[7,4], s9:[2,5], s10:[3,5], s11:[4,5], s12:[5,3], s13:[4,3], s14:[4,4], s15:[6,3],
-  c1:[5,10], c2:[3,10], c3:[3,10], c4:[4,10], c5:[5,10], c6:[4,9], c7:[5,10], c8:[5,10], c9:[3,9], c10:[4,8], c11:[3,9], c12:[4,7], c13:[3,9], c14:[4,9], c15:[5,8]
+  c1:[5,10], c2:[3,10], c3:[3,10], c4:[4,10], c5:[5,10], c6:[4,9], c7:[5,10], c8:[5,10], c9:[3,9], c10:[4,8], c11:[3,9], c12:[4,7], c13:[3,9], c14:[4,9], c15:[5,8],
+  n1:[6,5], n2:[3,6], n3:[3,5], n4:[4,5], n5:[3,5],
+  n6:[4,5], n7:[4,4], n8:[3,4], n9:[4,4], n10:[6,4],
+  n11:[5,6], n12:[4,6], n13:[4,6], n14:[5,5], n15:[4,6],
+  n16:[4,6], n17:[7,6], n18:[5,5], n19:[4,5], n20:[2,6]
 };
 
 const nodes = [
@@ -188,7 +192,27 @@ const nodes = [
   {id:"c13",name:"General Catalyst",    type:"company", cat:"VC / Funder",    desc:"Top-tier VC with NYC office; major AI investments including Mistral AI"},
   {id:"c14",name:"Bessemer Venture",    type:"company", cat:"VC / Funder",    desc:"Prominent VC with NYC office; Cloud 100 list; AI-first portfolio"},
   {id:"c15",name:"Verizon AI",          type:"company", cat:"Infrastructure", desc:"Verizon AI labs and 5G AI integration; NYC metro HQ"}
-];
+,
+  {id:"n1", name:"Harvey AI",         type:"startup", cat:"Enterprise AI",  desc:"AI legal assistant for law firms; NYC-based; one of the fastest-growing legal AI companies"},
+  {id:"n2", name:"Perplexity AI",     type:"startup", cat:"Frontier Lab",   desc:"AI-powered answer engine and search alternative; significant NYC team and presence"},
+  {id:"n3", name:"Adept AI",          type:"startup", cat:"Frontier Lab",   desc:"AI research lab building general-purpose AI agents that take real-world actions; NYC office"},
+  {id:"n4", name:"Cresta",            type:"startup", cat:"Enterprise AI",  desc:"Real-time AI coaching platform for contact center agents; major NYC enterprise hub"},
+  {id:"n5", name:"Synthesia",         type:"startup", cat:"Startup",        desc:"AI video generation with synthetic presenters; NYC as key North American office"},
+  {id:"n6", name:"Moveworks",         type:"startup", cat:"Enterprise AI",  desc:"AI copilot for enterprise IT and HR service desks; significant NYC presence"},
+  {id:"n7", name:"Typeface",          type:"startup", cat:"Enterprise AI",  desc:"Generative AI for personalized brand content at scale; NYC-based team"},
+  {id:"n8", name:"Inworld AI",        type:"startup", cat:"Startup",        desc:"AI characters and NPCs for gaming and interactive media; NYC office"},
+  {id:"n9", name:"Covariant",         type:"startup", cat:"Infrastructure", desc:"AI robotics foundation model for warehouse automation; NYC-area deployments"},
+  {id:"n10",name:"Abridge",           type:"startup", cat:"Enterprise AI",  desc:"AI-powered medical conversation summarization for clinicians; NYC health system partnerships"},
+  {id:"n11",name:"Kasisto",           type:"startup", cat:"Enterprise AI",  desc:"Conversational AI platform for banking; headquartered in NYC; KAI banking AI"},
+  {id:"n12",name:"Clarifai",          type:"startup", cat:"Infrastructure", desc:"Full-stack AI platform for vision, language, and audio models; NYC-founded and based"},
+  {id:"n13",name:"Gong",              type:"startup", cat:"Enterprise AI",  desc:"Revenue intelligence AI platform; large NYC go-to-market and sales team"},
+  {id:"n14",name:"Observe.AI",        type:"startup", cat:"Enterprise AI",  desc:"AI for contact center quality assurance and agent coaching; NYC enterprise focus"},
+  {id:"n15",name:"Ramp",              type:"company", cat:"Enterprise AI",  desc:"AI-powered spend management and corporate card platform; headquartered in NYC"},
+  {id:"n16",name:"Movable Ink",       type:"company", cat:"Enterprise AI",  desc:"AI-powered personalized marketing content platform; headquartered in NYC"},
+  {id:"n17",name:"Vectra AI",         type:"company", cat:"Infrastructure", desc:"AI-driven cybersecurity threat detection and response platform; major NYC presence"},
+  {id:"n18",name:"SambaNova Systems", type:"startup", cat:"Infrastructure", desc:"AI hardware and software platform for enterprise AI inference; NYC financial sector clients"},
+  {id:"n19",name:"Deel",              type:"company", cat:"Enterprise AI",  desc:"AI-powered global HR and payroll platform; major NYC office; AI-native workforce tools"},
+  {id:"n20",name:"Character.AI",      type:"startup", cat:"Frontier Lab",   desc:"AI characters and conversational agents; one of the most-used AI products globally; NYC office"}];
 
 const links = [
   {source:'p2',target:'c3'},{source:'p2',target:'o1'},{source:'p6',target:'o1'},
@@ -216,7 +240,16 @@ const links = [
   {source:'p19',target:'o1'},{source:'p16',target:'o1'},
   {source:'o13',target:'o3'},{source:'p3',target:'o13'},
   {source:'c14',target:'s2'},{source:'c12',target:'s9'},
-  {source:'s2',target:'c2'},{source:'s11',target:'c7'},{source:'s14',target:'c11'}
+  {source:'s2',target:'c2'},{source:'s11',target:'c7'},{source:'s14',target:'c11'},
+  {source:'n1',target:'c7'},{source:'n1',target:'c8'},
+  {source:'n2',target:'c2'},{source:'n2',target:'s1'},
+  {source:'n15',target:'c5'},{source:'n15',target:'c7'},
+  {source:'n11',target:'c5'},{source:'n11',target:'c8'},
+  {source:'n12',target:'s3'},{source:'n9',target:'c1'},
+  {source:'n13',target:'n14'},{source:'n4',target:'n14'},
+  {source:'n20',target:'n2'},{source:'n3',target:'n2'},
+  {source:'n16',target:'c9'},{source:'n17',target:'c4'},
+  {source:'n6',target:'n4'},{source:'n5',target:'s9'}
 ];
 document.getElementById('got-it').addEventListener('click', () => { document.getElementById('welcome').style.display = 'none'; });
 const catDiv = document.getElementById('category-filters');
