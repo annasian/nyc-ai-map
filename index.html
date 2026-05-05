@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NYC AI Leaders Map</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "Courier New", monospace; background: #f5f0e8; color: #1a1a1a; height: 100vh; overflow: hidden; }
+#header { background: #f5f0e8; border-bottom: 1px solid #ddd; padding: 8px 20px; display: flex; align-items: center; justify-content: space-between; height: 48px; }
+#header h1 { font-size: 14px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; }
+nav a { font-size: 12px; letter-spacing: 1px; text-transform: uppercase; margin-left: 20px; color: #1a1a1a; text-decoration: none; opacity: 0.6; cursor: pointer; }
+nav a.active { opacity: 1; border-bottom: 2px solid #1a1a1a; }
+#container { display: flex; height: calc(100vh - 48px); }
+#sidebar { width: 290px; min-width: 290px; background: #f5f0e8; border-right: 1px solid #ddd; overflow-y: auto; padding: 14px; }
+#map-area { flex: 1; position: relative; overflow: hidden; }
+svg { width: 100%; height: 100%; }
+.search-box { width: 100%; padding: 7px 10px; border: 1px solid #ccc; background: #fff; font-family: inherit; font-size: 12px; margin-bottom: 14px; border-radius: 2px; }
+.section-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.5; margin-bottom: 7px; margin-top: 11px; }
+.tab-row { display: flex; gap: 3px; margin-bottom: 11px; flex-wrap: wrap; }
+.tab-btn { padding: 3px 9px; font-family: inherit; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; border: 1px solid #ccc; background: #f5f0e8; cursor: pointer; border-radius: 2px; }
+.tab-btn.active { background: #1a1a1a; color: #f5f0e8; border-color: #1a1a1a; }
+.view-btn { padding: 4px 14px; font-family: inherit; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; border: 1px solid #ccc; background: #f5f0e8; cursor: pointer; }
+.view-btn.active { background: #1a1a1a; color: #f5f0e8; border-color: #1a1a1a; }
+.chip { display: inline-block; padding: 3px 7px; border-radius: 3px; font-size: 11px; margin: 2px; cursor: pointer; border: 1px solid transparent; transition: opacity 0.2s; }
+.chip.inactive { opacity: 0.2; }
+.legend-item { display: flex; align-items: center; gap: 8px; font-size: 11px; margin-bottom: 5px; cursor: pointer; user-select: none; }
+.legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.legend-item.inactive { opacity: 0.2; }
+#tooltip { position: absolute; background: #fff; border: 1px solid #ccc; padding: 12px; font-size: 12px; max-width: 240px; pointer-events: none; display: none; z-index: 100; border-radius: 2px; box-shadow: 2px 2px 10px rgba(0,0,0,0.12); }
+#tooltip h3 { font-size: 13px; margin-bottom: 4px; }
+#tooltip .t-cat { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; opacity: 0.6; margin-bottom: 6px; }
+#tooltip .t-desc { font-size: 11px; opacity: 0.8; line-height: 1.5; }
+.node circle { cursor: pointer; }
+.node circle:hover { stroke-width: 3.5 !important; }
+.node text { font-size: 8.5px; pointer-events: none; font-family: "Courier New", monospace; fill: #444; }
+.link { stroke: #bbb; stroke-opacity: 0.35; }
+.plot-node circle { cursor: pointer; }
+.plot-node circle:hover { stroke-width: 3.5 !important; }
+.plot-node text { font-size: 8px; pointer-events: none; font-family: "Courier New", monospace; fill: #555; }
+.axis-label { font-size: 10px; font-family: "Courier New", monospace; fill: #888; letter-spacing: 1px; }
+.axis path, .axis line { stroke: #ccc; }
+.axis text { font-size: 9px; font-family: "Courier New", monospace; fill: #aaa; }
+.grid line { stroke: #e8e3dc; stroke-dasharray: 3,4; }
+.grid path { stroke-width: 0; }
+.quadrant-label { font-size: 9px; font-family: "Courier New", monospace; fill: #bbb; letter-spacing: 1px; text-transform: uppercase; }
+#count-label { font-size: 10px; opacity: 0.5; margin-top: 10px; }
+#welcome { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); background: #fff; border: 1px solid #ccc; padding: 28px 30px; max-width: 440px; width: 90%; z-index: 200; line-height: 1.65; box-shadow: 4px 4px 20px rgba(0,0,0,0.12); }
+#welcome h2 { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
+#welcome p { margin-bottom: 9px; font-size: 12px; }
+#welcome button { padding: 7px 20px; background: #1a1a1a; color: #fff; border: none; font-family: inherit; font-size: 12px; cursor: pointer; letter-spacing: 1px; text-transform: uppercase; margin-top: 8px; }
+.zoom-controls { position: absolute; bottom: 18px; right: 18px; display: flex; flex-direction: column; gap: 4px; }
+.zoom-btn { width: 30px; height: 30px; background: #fff; border: 1px solid #ccc; font-size: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.zoom-btn:hover { background: #f0ece0; }
+</style>
+</head>
+<body>
+<div id="header"><h1>NYC AI MAP</h1><nav><a id="nav-about" onclick="document.getElementById('welcome').style.display='block'">ABOUT</a></nav></div>
+<div id="container">
+<div id="sidebar">
+<input class="search-box" type="text" placeholder="Search entities..." id="search-input">
+<div class="section-label">View</div>
+<div style="display:flex;gap:4px;margin-bottom:12px">
+<button class="view-btn active" id="btn-network">NETWORK</button>
+<button class="view-btn" id="btn-plot">PLOT</button>
+</div>
+<div class="tab-row" id="type-tabs">
+<button class="tab-btn active" data-filter="all">ALL</button>
+<button class="tab-btn" data-filter="org">ORGS</button>
+<button class="tab-btn" data-filter="person">PEOPLE</button>
+<button class="tab-btn" data-filter="startup">STARTUPS</button>
+<button class="tab-btn" data-filter="company">COMPANIES</button>
+</div>
+<div class="section-label">Category</div>
+<div id="category-filters"></div>
+<div class="section-label">Entity Type</div>
+<div id="type-legend"></div>
+<div id="count-label"></div>
+</div>
+<div id="map-area">
+<svg id="graph"></svg>
+<div id="tooltip"></div>
+<div class="zoom-controls">
+<button class="zoom-btn" id="zoom-in">+</button>
+<button class="zoom-btn" id="zoom-out">&minus;</button>
+</div>
+<div id="welcome">
+<h2>Welcome to the NYC AI Map</h2>
+<p><strong>Network:</strong> Force-directed graph. Click any node for details. Scroll to zoom, drag to pan.</p>
+<p><strong>Plot:</strong> Scatter chart positioning entities by AI Stance (X) and Maturity/Stage (Y).</p>
+<p><strong>Filter:</strong> Use tabs, chips, and legend to filter. Search by name or description.</p>
+<p><strong>Data:</strong> 65 entities — people, orgs, startups, and companies in NYC AI as of 2025.</p>
+<button id="got-it">GOT IT</button>
+</div>
+</div>
+</div>
+<script>
+const CATEGORIES = {
+  "Frontier Lab":   { color: "#e31a1c", bg: "rgba(227,26,28,0.15)" },
+  "Startup":        { color: "#ff7f00", bg: "rgba(255,127,0,0.15)" },
+  "Enterprise AI":  { color: "#6366f1", bg: "rgba(99,102,241,0.15)" },
+  "VC / Funder":    { color: "#33a02c", bg: "rgba(51,160,44,0.15)" },
+  "Academic":       { color: "#d4a017", bg: "rgba(212,160,23,0.15)" },
+  "Think Tank":     { color: "#1f78b4", bg: "rgba(31,120,180,0.15)" },
+  "Government":     { color: "#888",    bg: "rgba(166,206,227,0.25)" },
+  "Media":          { color: "#b15928", bg: "rgba(177,89,40,0.15)" },
+  "Ethics / Civil": { color: "#4daf4a", bg: "rgba(77,175,74,0.15)" },
+  "Infrastructure": { color: "#984ea3", bg: "rgba(152,78,163,0.15)" },
+  "Accelerator":    { color: "#e78ac3", bg: "rgba(231,138,195,0.2)" },
+  "Community":      { color: "#a65628", bg: "rgba(166,86,40,0.15)" }
+};
+const TYPE_BORDERS = { person:"#1a1a1a", org:"#6366f1", startup:"#e31a1c", company:"#33a02c" };
+const TYPE_LABELS  = { person:"Person", org:"Organization", startup:"Startup", company:"Company" };
+const TYPE_RADIUS  = { person:9, org:12, startup:10, company:13 };
+
+// stance: 1=Open/Accelerate, 10=Cautious/Restrictive
+// stage:  1=Early/Emerging, 10=Established/Mature
+const SCORES = {
+  p1:[3,9], p2:[4,9], p3:[7,8], p4:[8,7], p5:[6,7], p6:[8,7], p7:[3,8], p8:[4,7], p9:[7,6], p10:[3,8],
+  p11:[6,7], p12:[6,8], p13:[2,8], p14:[6,6], p15:[5,5], p16:[8,7], p17:[9,6], p18:[9,8], p19:[6,6], p20:[6,6],
+  o1:[8,7], o2:[5,8], o3:[5,9], o4:[9,7], o5:[7,7], o6:[6,6], o7:[8,5], o8:[9,7], o9:[6,7], o10:[5,6], o11:[5,7], o12:[9,6], o13:[6,7],
+  s1:[3,7], s2:[4,5], s3:[3,6], s4:[4,4], s5:[4,6], s6:[5,6], s7:[5,4], s8:[7,4], s9:[2,5], s10:[3,5], s11:[4,5], s12:[5,3], s13:[4,3], s14:[4,4], s15:[6,3],
+  c1:[5,10], c2:[3,10], c3:[3,10], c4:[4,10], c5:[5,10], c6:[4,9], c7:[5,10], c8:[5,10], c9:[3,9], c10:[4,8], c11:[3,9], c12:[4,7], c13:[3,9], c14:[4,9], c15:[5,8]
+};
+
+const nodes = [
+  {id:"p1", name:"Sam Altman",         type:"person",  cat:"Frontier Lab",   desc:"CEO of OpenAI, which has a major NYC office and significant research presence"},
+  {id:"p2", name:"Yann LeCun",         type:"person",  cat:"Frontier Lab",   desc:"Chief AI Scientist at Meta, based in NYC; Turing Award winner and deep learning pioneer"},
+  {id:"p3", name:"Gary Marcus",         type:"person",  cat:"Academic",       desc:"NYU Professor, AI critic and researcher, founder of Geometric Intelligence"},
+  {id:"p4", name:"Joanna Bryson",       type:"person",  cat:"Ethics / Civil", desc:"AI ethics researcher and policy advisor; active in NYC policy and standards discussions"},
+  {id:"p5", name:"Andrew Rasiej",       type:"person",  cat:"Community",      desc:"Founder of Personal Democracy Forum; NYC civic tech and AI governance leader"},
+  {id:"p6", name:"Julia Stoyanovich",   type:"person",  cat:"Academic",       desc:"Director of NYU Center for Responsible AI; professor of CS & data science at NYU Tandon"},
+  {id:"p7", name:"Matt Turck",          type:"person",  cat:"VC / Funder",    desc:"Partner at FirstMark Capital; prolific NYC AI investor, author of the annual ML/AI Landscape"},
+  {id:"p8", name:"Hilary Mason",        type:"person",  cat:"Startup",        desc:"Data scientist; founder of Fast Forward Labs; prominent NYC AI community leader"},
+  {id:"p9", name:"Anil Dash",           type:"person",  cat:"Ethics / Civil", desc:"CEO of Glitch; vocal advocate for ethical and humane technology in NYC"},
+  {id:"p10",name:"Dario Amodei",        type:"person",  cat:"Frontier Lab",   desc:"CEO of Anthropic (NYC office); formerly OpenAI VP of Research"},
+  {id:"p11",name:"Amy Webb",            type:"person",  cat:"Think Tank",     desc:"Futurist and founder of Future Today Institute, based in NYC; annual AI Trends Report"},
+  {id:"p12",name:"Oren Etzioni",        type:"person",  cat:"Think Tank",     desc:"Former CEO of Allen Institute for AI; active AI policy voice in NYC circles"},
+  {id:"p13",name:"Gideon Lewis-Kraus",  type:"person",  cat:"Media",          desc:"Staff writer at The New Yorker covering AI; based in NYC"},
+  {id:"p14",name:"Karen Hao",           type:"person",  cat:"Media",          desc:"AI investigative journalist; formerly MIT Technology Review; covers AI ethics"},
+  {id:"p15",name:"Eric Adams",          type:"person",  cat:"Government",     desc:"Former NYC Mayor; launched NYC AI Action Plan and city-wide AI adoption initiatives"},
+  {id:"p16",name:"Emily Bender",        type:"person",  cat:"Academic",       desc:"UW linguist; co-author of Stochastic Parrots; frequent NYC speaker on LLM risks"},
+  {id:"p17",name:"Joy Buolamwini",      type:"person",  cat:"Ethics / Civil", desc:"Founder of Algorithmic Justice League; MIT researcher fighting biased AI systems"},
+  {id:"p18",name:"Kate Crawford",       type:"person",  cat:"Ethics / Civil", desc:"Author of Atlas of AI; senior researcher at Microsoft Research NYC"},
+  {id:"p19",name:"Meredith Broussard",  type:"person",  cat:"Academic",       desc:"NYU journalism professor; author of Artificial Unintelligence; data journalism pioneer"},
+  {id:"p20",name:"Nitasha Tiku",        type:"person",  cat:"Media",          desc:"Washington Post tech reporter covering AI ethics and big tech culture"},
+  {id:"o1", name:"NYU Ctr. Resp. AI",   type:"org",     cat:"Academic",       desc:"R/AI at NYU: research on fairness, accountability, and transparency in AI systems"},
+  {id:"o2", name:"Cornell Tech",        type:"org",     cat:"Academic",       desc:"Cornell NYC campus on Roosevelt Island; major AI research hub and startup ecosystem"},
+  {id:"o3", name:"Columbia Data Sci.",  type:"org",     cat:"Academic",       desc:"Columbia University Data Science Institute; AI research, education, and industry partnerships"},
+  {id:"o4", name:"AI Now Institute",    type:"org",     cat:"Ethics / Civil", desc:"Research institute at NYU studying social implications of AI; publishes annual report"},
+  {id:"o5", name:"Partnership on AI",   type:"org",     cat:"Ethics / Civil", desc:"Multi-stakeholder organization on responsible AI; NYC chapter actively engaged"},
+  {id:"o6", name:"NYC Mayor Office Tech",type:"org",    cat:"Government",     desc:"City office overseeing NYC tech and AI policy, including city algorithmic tools"},
+  {id:"o7", name:"NYC Algo. Task Force",type:"org",     cat:"Government",     desc:"City task force examining algorithmic decision-making in public city services"},
+  {id:"o8", name:"Data & Society",      type:"org",     cat:"Think Tank",     desc:"NYC-based research institute on social and cultural issues from data and automation"},
+  {id:"o9", name:"Future Today Inst.",  type:"org",     cat:"Think Tank",     desc:"Amy Webb strategic foresight firm; produces annual AI & Emerging Tech Trends Report"},
+  {id:"o10",name:"Tech:NYC",            type:"org",     cat:"Community",      desc:"Advocacy organization representing NYC tech sector on policy including AI regulation"},
+  {id:"o11",name:"NYC Media Lab",       type:"org",     cat:"Community",      desc:"Partnership between NYU, Columbia, and The New School on media innovation and AI"},
+  {id:"o12",name:"Algo. Justice League",type:"org",     cat:"Ethics / Civil", desc:"Joy Buolamwini organization fighting harmful AI bias through research, policy, and art"},
+  {id:"o13",name:"NYU Stern Fubon Ctr.",type:"org",     cat:"Academic",       desc:"NYU Stern center for business and AI innovation; AI in finance and business research"},
+  {id:"s1", name:"Hugging Face",        type:"startup", cat:"Frontier Lab",   desc:"Open-source AI model hub; headquartered in NYC. Leading platform for ML models worldwide"},
+  {id:"s2", name:"Cohere",              type:"startup", cat:"Enterprise AI",  desc:"Enterprise NLP platform with major NYC office; provides LLM APIs for enterprises"},
+  {id:"s3", name:"Weights & Biases",    type:"startup", cat:"Infrastructure", desc:"MLOps platform for experiment tracking and model monitoring; significant NYC team"},
+  {id:"s4", name:"Writer",              type:"startup", cat:"Enterprise AI",  desc:"Enterprise generative AI platform for business content at scale; NYC-based"},
+  {id:"s5", name:"Dataiku",             type:"startup", cat:"Enterprise AI",  desc:"Everyday AI platform for enterprises; US HQ in NYC; 1000+ enterprise clients"},
+  {id:"s6", name:"Socure",              type:"startup", cat:"Enterprise AI",  desc:"AI-powered digital identity verification; NYC-based unicorn serving major financial institutions"},
+  {id:"s7", name:"Snorkel AI",          type:"startup", cat:"Infrastructure", desc:"Data-centric AI platform for programmatic data labeling; NYC enterprise sales office"},
+  {id:"s8", name:"Robust Intelligence", type:"startup", cat:"Infrastructure", desc:"AI risk assessment, validation, and monitoring platform; NYC-headquartered"},
+  {id:"s9", name:"Runway ML",           type:"startup", cat:"Frontier Lab",   desc:"Generative AI for video and creative tools; founded and HQ in NYC; Gen-2 video model"},
+  {id:"s10",name:"Stability AI (NYC)",  type:"startup", cat:"Frontier Lab",   desc:"Makers of Stable Diffusion image generation model; major NYC operations"},
+  {id:"s11",name:"Glean",               type:"startup", cat:"Enterprise AI",  desc:"AI-powered enterprise search and knowledge management; significant NYC customer base"},
+  {id:"s12",name:"Lilt",                type:"startup", cat:"Enterprise AI",  desc:"AI-powered translation and localization platform; NYC office serving global enterprises"},
+  {id:"s13",name:"D-ID",                type:"startup", cat:"Startup",        desc:"Generative AI for digital humans and talking avatars; NYC as key North American hub"},
+  {id:"s14",name:"Jasper AI",           type:"startup", cat:"Enterprise AI",  desc:"AI writing assistant for marketing teams; large NYC-based customer community"},
+  {id:"s15",name:"Cleanlab",            type:"startup", cat:"Infrastructure", desc:"Data quality AI for finding label errors in ML training data; NYC-based"},
+  {id:"c1", name:"IBM Research NY",     type:"company", cat:"Enterprise AI",  desc:"IBM T.J. Watson Research Center in NY; Watson AI and enterprise AI solutions"},
+  {id:"c2", name:"Google NYC",          type:"company", cat:"Frontier Lab",   desc:"Google largest office outside HQ; hosts major AI research including DeepMind NYC"},
+  {id:"c3", name:"Meta AI NYC",         type:"company", cat:"Frontier Lab",   desc:"Meta NYC AI team led by Yann LeCun; FAIR (Fundamental AI Research) lab"},
+  {id:"c4", name:"Microsoft NYC",       type:"company", cat:"Frontier Lab",   desc:"Major NYC office; Azure AI, GitHub Copilot, and OpenAI partnership teams"},
+  {id:"c5", name:"Bloomberg LP",        type:"company", cat:"Enterprise AI",  desc:"NYC financial data giant; BloombergGPT and extensive AI in financial products"},
+  {id:"c6", name:"Two Sigma",           type:"company", cat:"Enterprise AI",  desc:"NYC quant hedge fund; heavy AI/ML application in finance"},
+  {id:"c7", name:"JPMorgan AI",         type:"company", cat:"Enterprise AI",  desc:"JPMorgan Chase AI research and applications center in NYC; IndexGPT"},
+  {id:"c8", name:"Goldman Sachs AI",    type:"company", cat:"Enterprise AI",  desc:"Goldman Sachs AI platform and engineering teams; NYC global HQ; GS AI Labs"},
+  {id:"c9", name:"Spotify NYC",         type:"company", cat:"Enterprise AI",  desc:"Spotify global HQ in NYC; AI-driven music recommendation and podcast discovery"},
+  {id:"c10",name:"Etsy",                type:"company", cat:"Enterprise AI",  desc:"NYC e-commerce platform with significant AI/ML teams for search and personalization"},
+  {id:"c11",name:"FirstMark Capital",   type:"company", cat:"VC / Funder",    desc:"NYC VC firm; early investor in Airbnb, DraftKings, and many leading AI startups"},
+  {id:"c12",name:"Lerer Hippeau",       type:"company", cat:"VC / Funder",    desc:"NYC-based seed stage VC fund with strong AI startup portfolio"},
+  {id:"c13",name:"General Catalyst",    type:"company", cat:"VC / Funder",    desc:"Top-tier VC with NYC office; major AI investments including Mistral AI"},
+  {id:"c14",name:"Bessemer Venture",    type:"company", cat:"VC / Funder",    desc:"Prominent VC with NYC office; Cloud 100 list; AI-first portfolio"},
+  {id:"c15",name:"Verizon AI",          type:"company", cat:"Infrastructure", desc:"Verizon AI labs and 5G AI integration; NYC metro HQ"}
+];
+
+const links = [
+  {source:'p2',target:'c3'},{source:'p2',target:'o1'},{source:'p6',target:'o1'},
+  {source:'p3',target:'o1'},{source:'p3',target:'o4'},{source:'p6',target:'o4'},
+  {source:'o4',target:'o1'},{source:'o2',target:'o3'},{source:'o3',target:'o1'},
+  {source:'p7',target:'c11'},{source:'p7',target:'s1'},{source:'p7',target:'s2'},
+  {source:'c11',target:'c12'},{source:'c12',target:'c13'},{source:'c13',target:'c14'},
+  {source:'s1',target:'s2'},{source:'s1',target:'c2'},{source:'s1',target:'c3'},
+  {source:'p1',target:'c2'},{source:'p1',target:'c4'},{source:'p10',target:'p1'},
+  {source:'c4',target:'c2'},{source:'c4',target:'s3'},
+  {source:'s9',target:'s10'},{source:'s9',target:'c2'},
+  {source:'o6',target:'o7'},{source:'p15',target:'o6'},{source:'o10',target:'o6'},
+  {source:'p5',target:'o10'},{source:'p9',target:'o10'},
+  {source:'o8',target:'o4'},{source:'o5',target:'o4'},{source:'o12',target:'o4'},
+  {source:'c1',target:'c5'},{source:'c5',target:'c6'},{source:'c6',target:'c7'},
+  {source:'c7',target:'c8'},{source:'p8',target:'s1'},{source:'p8',target:'o11'},
+  {source:'o11',target:'o2'},{source:'s5',target:'c5'},{source:'s6',target:'c7'},
+  {source:'p11',target:'o9'},{source:'o9',target:'o8'},
+  {source:'p13',target:'p14'},{source:'p14',target:'p20'},
+  {source:'s3',target:'s7'},{source:'s7',target:'s8'},{source:'s8',target:'s15'},
+  {source:'c13',target:'s1'},{source:'c13',target:'s9'},
+  {source:'p4',target:'o5'},{source:'p12',target:'o5'},
+  {source:'c9',target:'c10'},
+  {source:'p17',target:'o12'},{source:'p18',target:'o4'},{source:'p18',target:'o8'},
+  {source:'p19',target:'o1'},{source:'p16',target:'o1'},
+  {source:'o13',target:'o3'},{source:'p3',target:'o13'},
+  {source:'c14',target:'s2'},{source:'c12',target:'s9'},
+  {source:'s2',target:'c2'},{source:'s11',target:'c7'},{source:'s14',target:'c11'}
+];
+document.getElementById('got-it').addEventListener('click', () => { document.getElementById('welcome').style.display = 'none'; });
+const catDiv = document.getElementById('category-filters');
+let activeCats = new Set(Object.keys(CATEGORIES));
+Object.entries(CATEGORIES).forEach(([name, cfg]) => {
+  const chip = document.createElement('span');
+  chip.className = 'chip';
+  chip.textContent = name;
+  chip.style.background = cfg.bg;
+  chip.style.color = cfg.color;
+  chip.style.borderColor = cfg.color + '88';
+  chip.addEventListener('click', () => {
+    if (activeCats.has(name)) { activeCats.delete(name); chip.classList.add('inactive'); }
+    else { activeCats.add(name); chip.classList.remove('inactive'); }
+    render();
+  });
+  catDiv.appendChild(chip);
+});
+const typeDiv = document.getElementById('type-legend');
+let activeTypes = new Set(Object.keys(TYPE_LABELS));
+Object.entries(TYPE_LABELS).forEach(([type, label]) => {
+  const item = document.createElement('div');
+  item.className = 'legend-item';
+  const dot = document.createElement('div');
+  dot.className = 'legend-dot';
+  dot.style.background = TYPE_BORDERS[type];
+  item.appendChild(dot);
+  item.appendChild(document.createTextNode(label));
+  item.addEventListener('click', () => {
+    if (activeTypes.has(type)) { activeTypes.delete(type); item.classList.add('inactive'); }
+    else { activeTypes.add(type); item.classList.remove('inactive'); }
+    render();
+  });
+  typeDiv.appendChild(item);
+});
+let activeTab = 'all';
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeTab = btn.dataset.filter;
+    render();
+  });
+});
+let searchTerm = '';
+document.getElementById('search-input').addEventListener('input', e => {
+  searchTerm = e.target.value.toLowerCase();
+  render();
+});
+let currentView = 'network';
+document.getElementById('btn-network').addEventListener('click', () => {
+  currentView = 'network';
+  document.getElementById('btn-network').classList.add('active');
+  document.getElementById('btn-plot').classList.remove('active');
+  document.getElementById('zoom-in').style.display = 'flex';
+  document.getElementById('zoom-out').style.display = 'flex';
+  render();
+});
+document.getElementById('btn-plot').addEventListener('click', () => {
+  currentView = 'plot';
+  document.getElementById('btn-plot').classList.add('active');
+  document.getElementById('btn-network').classList.remove('active');
+  document.getElementById('zoom-in').style.display = 'none';
+  document.getElementById('zoom-out').style.display = 'none';
+  render();
+});
+function getFiltered() {
+  return nodes.filter(d => {
+    if (activeTab !== 'all' && d.type !== activeTab) return false;
+    if (!activeCats.has(d.cat)) return false;
+    if (!activeTypes.has(d.type)) return false;
+    if (searchTerm && !d.name.toLowerCase().includes(searchTerm) && !d.desc.toLowerCase().includes(searchTerm) && !d.cat.toLowerCase().includes(searchTerm)) return false;
+    return true;
+  });
+}
+function posTooltip(e) {
+  const tt = document.getElementById('tooltip');
+  const rect = document.getElementById('map-area').getBoundingClientRect();
+  let x = e.clientX - rect.left + 14;
+  let y = e.clientY - rect.top - 10;
+  if (x + 250 > document.getElementById('map-area').offsetWidth) x = e.clientX - rect.left - 255;
+  if (y < 0) y = 10;
+  tt.style.left = x + 'px';
+  tt.style.top = y + 'px';
+}
+function showTooltip(e, d) {
+  const tt = document.getElementById('tooltip');
+  const sc = SCORES[d.id];
+  const stanceLabel = sc ? (sc[0] <= 3 ? 'Open / Accelerate' : sc[0] <= 6 ? 'Moderate' : 'Cautious / Restrictive') : '';
+  const stageLabel  = sc ? (sc[1] <= 3 ? 'Early / Emerging'  : sc[1] <= 6 ? 'Growing'  : 'Established / Mature') : '';
+  tt.style.display = 'block';
+  tt.innerHTML = '<h3>' + d.name + '</h3><div class="t-cat">' + d.cat + ' &middot; ' + TYPE_LABELS[d.type] + (sc ? ' &middot; ' + stanceLabel + ' &middot; ' + stageLabel : '') + '</div><div class="t-desc">' + d.desc + '</div>';
+  posTooltip(e);
+}
+const svgEl = d3.select('#graph');
+const g = svgEl.append('g').attr('id','net-g');
+const plotG = svgEl.append('g').attr('id','plot-g');
+const mapArea = document.getElementById('map-area');
+const W = () => mapArea.offsetWidth;
+const H = () => mapArea.offsetHeight;
+const zoom = d3.zoom().scaleExtent([0.15,5]).on('zoom', e => g.attr('transform', e.transform));
+svgEl.call(zoom);
+document.getElementById('zoom-in').addEventListener('click', () => svgEl.transition().duration(300).call(zoom.scaleBy, 1.5));
+document.getElementById('zoom-out').addEventListener('click', () => svgEl.transition().duration(300).call(zoom.scaleBy, 0.67));
+const simulation = d3.forceSimulation()
+  .force('link', d3.forceLink().id(d => d.id).distance(65).strength(0.35))
+  .force('charge', d3.forceManyBody().strength(-130))
+  .force('center', d3.forceCenter(W()/2, H()/2))
+  .force('collision', d3.forceCollide(d => TYPE_RADIUS[d.type] + 8));
+function renderNetwork(filtered) {
+  d3.select('#net-g').style('display','block');
+  d3.select('#plot-g').style('display','none');
+  const filteredIds = new Set(filtered.map(d => d.id));
+  const filteredLinks = links.filter(l => {
+    const s = l.source.id||l.source, t = l.target.id||l.target;
+    return filteredIds.has(s) && filteredIds.has(t);
+  });
+  const linkData = filteredLinks.map(l => ({source: l.source.id||l.source, target: l.target.id||l.target}));
+  g.selectAll('.link').remove();
+  g.selectAll('.node').remove();
+  const linkSel = g.selectAll('.link').data(linkData).enter().append('line').attr('class','link');
+  const nodeSel = g.selectAll('.node').data(filtered, d => d.id).enter().append('g').attr('class','node')
+    .call(d3.drag()
+      .on('start',(e,d)=>{ if(!e.active) simulation.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag', (e,d)=>{ d.fx=e.x; d.fy=e.y; })
+      .on('end',  (e,d)=>{ if(!e.active) simulation.alphaTarget(0); d.fx=null; d.fy=null; }));
+  nodeSel.append('circle')
+    .attr('r', d => TYPE_RADIUS[d.type])
+    .attr('fill', d => { const c=CATEGORIES[d.cat]; return c ? c.color+'bb' : '#888'; })
+    .attr('stroke', d => TYPE_BORDERS[d.type])
+    .attr('stroke-width', 2);
+  nodeSel.append('text').attr('dy', d => TYPE_RADIUS[d.type]+11).attr('text-anchor','middle')
+    .text(d => d.name.length>14 ? d.name.slice(0,13)+'...' : d.name);
+  const tt = document.getElementById('tooltip');
+  nodeSel.on('mouseover',(e,d)=>showTooltip(e,d)).on('mousemove',posTooltip).on('mouseout',()=>{ tt.style.display='none'; });
+  simulation.nodes(filtered).on('tick', () => {
+    linkSel.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    nodeSel.attr('transform',d=>'translate('+d.x+','+d.y+')');
+  });
+  simulation.force('link').links(linkData);
+  simulation.alpha(0.85).restart();
+}
+function renderPlot(filtered) {
+  d3.select('#net-g').style('display','none');
+  d3.select('#plot-g').style('display','block');
+  plotG.selectAll('*').remove();
+  simulation.stop();
+  const margin = {top:50, right:60, bottom:80, left:90};
+  const pw = W() - margin.left - margin.right;
+  const ph = H() - margin.top - margin.bottom;
+  const xScale = d3.scaleLinear().domain([1,10]).range([0, pw]);
+  const yScale = d3.scaleLinear().domain([1,10]).range([ph, 0]);
+  const root = plotG.append('g').attr('transform','translate('+margin.left+','+margin.top+')');
+  root.append('g').attr('class','grid')
+    .call(d3.axisLeft(yScale).ticks(9).tickSize(-pw).tickFormat(''));
+  root.append('g').attr('class','grid').attr('transform','translate(0,'+ph+')')
+    .call(d3.axisBottom(xScale).ticks(9).tickSize(-ph).tickFormat(''));
+  root.append('rect').attr('x',0).attr('y',0).attr('width',xScale(5.5)).attr('height',yScale(5.5)).attr('fill','rgba(77,175,74,0.04)');
+  root.append('rect').attr('x',xScale(5.5)).attr('y',0).attr('width',pw-xScale(5.5)).attr('height',yScale(5.5)).attr('fill','rgba(31,120,180,0.04)');
+  root.append('rect').attr('x',0).attr('y',yScale(5.5)).attr('width',xScale(5.5)).attr('height',ph-yScale(5.5)).attr('fill','rgba(255,127,0,0.04)');
+  root.append('rect').attr('x',xScale(5.5)).attr('y',yScale(5.5)).attr('width',pw-xScale(5.5)).attr('height',ph-yScale(5.5)).attr('fill','rgba(227,26,28,0.04)');
+  root.append('line').attr('x1',xScale(5.5)).attr('x2',xScale(5.5)).attr('y1',0).attr('y2',ph).attr('stroke','#ccc').attr('stroke-dasharray','4,4');
+  root.append('line').attr('x1',0).attr('x2',pw).attr('y1',yScale(5.5)).attr('y2',yScale(5.5)).attr('stroke','#ccc').attr('stroke-dasharray','4,4');
+  root.append('text').attr('class','quadrant-label').attr('x',8).attr('y',14).text('OPEN + EMERGING');
+  root.append('text').attr('class','quadrant-label').attr('x',xScale(5.5)+8).attr('y',14).text('CAUTIOUS + EMERGING');
+  root.append('text').attr('class','quadrant-label').attr('x',8).attr('y',yScale(5.5)+16).text('OPEN + ESTABLISHED');
+  root.append('text').attr('class','quadrant-label').attr('x',xScale(5.5)+8).attr('y',yScale(5.5)+16).text('CAUTIOUS + ESTABLISHED');
+  root.append('g').attr('class','axis').attr('transform','translate(0,'+ph+')')
+    .call(d3.axisBottom(xScale).ticks(9).tickFormat(d => d===1 ? 'Open' : d===10 ? 'Restrictive' : ''));
+  root.append('g').attr('class','axis')
+    .call(d3.axisLeft(yScale).ticks(9).tickFormat(d => d===1 ? 'Emerging' : d===10 ? 'Mature' : ''));
+  root.append('text').attr('class','axis-label').attr('text-anchor','middle')
+    .attr('x', pw/2).attr('y', ph+60)
+    .text('AI STANCE   ←  OPEN / ACCELERATE  ·····  CAUTIOUS / RESTRICTIVE  →');
+  root.append('text').attr('class','axis-label').attr('text-anchor','middle')
+    .attr('transform','translate('+ (-68) +','+ (ph/2) +')rotate(-90)')
+    .text('STAGE   ←  EARLY / EMERGING  ·····  ESTABLISHED / MATURE  →');
+  const plotNodes = filtered.filter(d => SCORES[d.id]);
+  const tt = document.getElementById('tooltip');
+  const jitter = () => (Math.random() - 0.5) * 12;
+  const pNode = root.selectAll('.plot-node').data(plotNodes, d => d.id).enter().append('g').attr('class','plot-node')
+    .attr('transform', d => {
+      const sc = SCORES[d.id];
+      return 'translate('+(xScale(sc[0])+jitter())+','+(yScale(sc[1])+jitter())+')';
+    });
+  pNode.append('circle')
+    .attr('r', d => TYPE_RADIUS[d.type] - 1)
+    .attr('fill', d => { const c=CATEGORIES[d.cat]; return c ? c.color+'bb' : '#888'; })
+    .attr('stroke', d => TYPE_BORDERS[d.type])
+    .attr('stroke-width', 1.8);
+  pNode.append('text').attr('dy', d => TYPE_RADIUS[d.type]+10).attr('text-anchor','middle')
+    .text(d => d.name.length>12 ? d.name.slice(0,11)+'...' : d.name);
+  pNode.on('mouseover',(e,d)=>showTooltip(e,d)).on('mousemove',posTooltip).on('mouseout',()=>{ tt.style.display='none'; });
+}
+function render() {
+  const filtered = getFiltered();
+  document.getElementById('count-label').textContent = filtered.length + ' of ' + nodes.length + ' entities shown';
+  if (currentView === 'network') renderNetwork(filtered);
+  else renderPlot(filtered);
+}
+render();
+window.addEventListener('resize', () => {
+  simulation.force('center', d3.forceCenter(W()/2, H()/2));
+  if (currentView === 'network') simulation.alpha(0.3).restart();
+  else render();
+});
+</script>
+</body>
+</html>
